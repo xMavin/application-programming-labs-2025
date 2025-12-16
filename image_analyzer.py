@@ -11,9 +11,27 @@ class ImageAnalyzer:
 
     def load_and_analyze(self) -> pd.DataFrame:
         """Загружает аннотацию и добавляет колонки с диапазонами яркости."""
-        df = pd.read_csv(self.annotation_file, header=None,
-                         names=['Абсолютный путь', 'Относительный путь'],
-                         encoding ="utf-8-sig")
+        df = self._load_annotation_csv()
+
+        df = self._find_and_add_paths(df)
+
+        df = self._calculate_ranges(df)
+
+        df = self._create_categories(df)
+
+        return df
+
+    def _load_annotation_csv(self) -> pd.DataFrame:
+        """Загружает CSV с аннотациями."""
+        return pd.read_csv(
+            self.annotation_file,
+            header=None,
+            names=['Абсолютный путь', 'Относительный путь'],
+            encoding="utf-8-sig"
+        )
+
+    def _find_and_add_paths(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Ищет файлы и добавляет колонку 'Путь'."""
         base_dir = os.path.dirname(self.annotation_file)
         found_paths = []
 
@@ -34,35 +52,45 @@ class ImageAnalyzer:
 
         df['Путь'] = found_paths
         df = df[df['Путь'].notna()].copy()
+        return df
 
+    def _calculate_ranges(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Вычисляет диапазоны для RGB каналов."""
         ranges_r, ranges_g, ranges_b = [], [], []
 
         for path in df['Путь']:
-            try:
-                image = cv2.imread(path)
-                if image is None:
-                    ranges_r.append(0); ranges_g.append(0); ranges_b.append(0)
-                    continue
-
-                image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-
-                range_r = np.max(image_rgb[:,:,0]) - np.min(image_rgb[:,:,0])
-                range_g = np.max(image_rgb[:,:,1]) - np.min(image_rgb[:,:,1])
-                range_b = np.max(image_rgb[:,:,2]) - np.min(image_rgb[:,:,2])
-
-                ranges_r.append(float(range_r))
-                ranges_g.append(float(range_g))
-                ranges_b.append(float(range_b))
-
-            except Exception as e:
-                print(f"Ошибка обработки {path}: {e}")
-                ranges_r.append(0); ranges_g.append(0); ranges_b.append(0)
+            range_r, range_g, range_b = self._process_single_image(path)
+            ranges_r.append(range_r)
+            ranges_g.append(range_g)
+            ranges_b.append(range_b)
 
         df['Диапазон_R'] = ranges_r
         df['Диапазон_G'] = ranges_g
         df['Диапазон_B'] = ranges_b
 
+        return df
 
+    def _process_single_image(self, path: str) -> tuple:
+        """Обрабатывает одно изображение и возвращает диапазоны."""
+        try:
+            image = cv2.imread(path)
+            if image is None:
+                return 0.0, 0.0, 0.0
+
+            image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+            range_r = np.max(image_rgb[:, :, 0]) - np.min(image_rgb[:, :, 0])
+            range_g = np.max(image_rgb[:, :, 1]) - np.min(image_rgb[:, :, 1])
+            range_b = np.max(image_rgb[:, :, 2]) - np.min(image_rgb[:, :, 2])
+
+            return float(range_r), float(range_g), float(range_b)
+
+        except Exception as e:
+            print(f"Ошибка обработки {path}: {e}")
+            return 0.0, 0.0, 0.0
+
+    def _create_categories(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Создаёт категории для диапазонов."""
         bins = [0, 100, 150, 200, 210, 220, 230, 240, 250, 256]
         labels = ['0-100', '101-150', '151-200', '201-210', '211-220',
                   '221-230', '231-240', '241-250', '251-255']

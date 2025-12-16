@@ -14,15 +14,18 @@ def main():
 
     try:
         analyzer = ImageAnalyzer(args.annotation)
+
+
         df = analyzer.load_and_analyze()
         print(f"Обработано изображений: {len(df)}")
+
 
         print(f"Сортировка по каналу {args.sort_by}")
         df_sorted = analyzer.sort_by_channel(df, args.sort_by)
 
+
         print("Фильтрация (диапазон 200-255)")
-        df_filtered = analyzer.filter_by_range(df_sorted, 200,
-                                               255,
+        df_filtered = analyzer.filter_by_range(df_sorted, 200, 255,
                                                args.sort_by)
 
         df_filtered.to_csv(args.output_csv, index=False, encoding='utf-8-sig')
@@ -32,6 +35,10 @@ def main():
         analyzer.plot_histograms(df_sorted, args.output_plot)
         print(f"График сохранен: {args.output_plot}")
 
+
+    except FileNotFoundError as e:
+        print(f"Файл не найден: {e}")
+        sys.exit(1)
     except Exception as e:
         print(f"Ошибка: {e}")
         sys.exit(1)
